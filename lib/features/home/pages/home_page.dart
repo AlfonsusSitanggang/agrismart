@@ -1,23 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:agrismart/core/services/secure_storage_service.dart';
+import 'package:agrismart/features/auth/pages/login_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   Future<void> _logout(BuildContext context) async {
-    final secureStorageService = SecureStorageService();
-    await secureStorageService.deleteToken();
+    await SecureStorageService().deleteToken();
 
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Logout berhasil'),
-      ),
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
     );
-
-    context.go('/login');
   }
 
   @override
@@ -33,13 +28,7 @@ class HomePage extends StatelessWidget {
         ],
       ),
       body: const Center(
-        child: Text(
-          'Selamat datang di AgriSmart',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        child: Text('Selamat datang di AgriSmart'),
       ),
     );
   }
