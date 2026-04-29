@@ -5,7 +5,7 @@ import '../features/auth/pages/register_page.dart';
 import '../features/home/pages/home_page.dart';
 
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/',
+  initialLocation: '/login',
   routes: [
     GoRoute(
       path: '/',
