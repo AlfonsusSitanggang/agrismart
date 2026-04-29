@@ -1,6 +1,6 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:agrismart/core/services/secure_storage_service.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -10,18 +10,26 @@ class SplashPage extends StatefulWidget {
 }
 
 class _SplashPageState extends State<SplashPage> {
+  final SecureStorageService _secureStorageService = SecureStorageService();
+
   @override
   void initState() {
     super.initState();
-    _goToLogin();
+    _checkLoginStatus();
   }
 
-  void _goToLogin() {
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        context.go('/login');
-      }
-    });
+  Future<void> _checkLoginStatus() async {
+    await Future.delayed(const Duration(seconds: 2));
+
+    final token = await _secureStorageService.getToken();
+
+    if (!mounted) return;
+
+    if (token != null && token.isNotEmpty) {
+      context.go('/home');
+    } else {
+      context.go('/login');
+    }
   }
 
   @override
