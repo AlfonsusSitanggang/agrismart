@@ -6,10 +6,16 @@ class AuthService {
   final Dio _dio = ApiService().dio;
   final SecureStorageService _secureStorageService = SecureStorageService();
 
-  Future<void> login({required String email, required String password}) async {
+  Future<void> login({
+    required String email,
+    required String password,
+  }) async {
     final response = await _dio.post(
-      '/login',
-      data: {'email': email, 'password': password},
+      '/auth/login',
+      data: {
+        'email': email,
+        'password': password,
+      },
     );
 
     final token = response.data['token'];
@@ -27,8 +33,12 @@ class AuthService {
     required String password,
   }) async {
     await _dio.post(
-      '/register',
-      data: {'name': name, 'email': email, 'password': password},
+      '/auth/register',
+      data: {
+        'name': name,
+        'email': email,
+        'password': password,
+      },
     );
   }
 }
