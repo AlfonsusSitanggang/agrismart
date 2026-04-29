@@ -1,4 +1,5 @@
 import 'package:agrismart/core/services/auth_service.dart';
+import 'package:agrismart/core/services/biometric_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -14,6 +15,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
+  final BiometricService _biometricService = BiometricService();
 
   bool _isPasswordHidden = true;
   bool _isLoading = false;
@@ -40,21 +42,17 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Login berhasil'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Login berhasil')));
 
       context.go('/home');
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Login gagal: $e'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Login gagal: $e')));
     }
 
     if (!mounted) return;
@@ -64,13 +62,41 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
+  Future<void> _loginWithBiometric() async {
+    final isAvailable = await _biometricService.isBiometricAvailable();
+
+    if (!isAvailable) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Biometrik tidak tersedia di perangkat ini'),
+        ),
+      );
+      return;
+    }
+
+    final isAuthenticated = await _biometricService.authenticate();
+
+    if (!mounted) return;
+
+    if (isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Autentikasi biometrik berhasil')),
+      );
+
+      context.go('/home');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Autentikasi biometrik gagal')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Login'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Login'), centerTitle: true),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -80,19 +106,12 @@ class _LoginPageState extends State<LoginPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 40),
-                const Icon(
-                  Icons.eco,
-                  size: 72,
-                  color: Colors.green,
-                ),
+                const Icon(Icons.eco, size: 72, color: Colors.green),
                 const SizedBox(height: 16),
                 const Text(
                   'Selamat Datang di AgriSmart',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 const Text(
@@ -159,6 +178,13 @@ class _LoginPageState extends State<LoginPage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Text('Login'),
+                ),
+                const SizedBox(height: 12),
+
+                OutlinedButton.icon(
+                  onPressed: _loginWithBiometric,
+                  icon: const Icon(Icons.fingerprint),
+                  label: const Text('Masuk dengan Biometrik'),
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton(
