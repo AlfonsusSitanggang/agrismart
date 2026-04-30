@@ -1,4 +1,5 @@
 import 'package:agrismart/core/services/biometric_service.dart';
+import 'package:agrismart/core/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:agrismart/core/services/secure_storage_service.dart';
 import 'package:agrismart/features/auth/pages/login_page.dart';
@@ -29,34 +30,48 @@ class HomePage extends StatelessWidget {
         ],
       ),
       body: Center(
-        child: ElevatedButton(
-          onPressed: () async {
-            final biometricService = BiometricService();
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              onPressed: () async {
+                final biometricService = BiometricService();
 
-            final available = await biometricService.isBiometricAvailable();
+                final available = await biometricService.isBiometricAvailable();
 
-            if (!available) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Biometrik tidak tersedia di perangkat ini'),
-                ),
-              );
-              return;
-            }
+                if (!available) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Biometrik tidak tersedia di perangkat ini',
+                      ),
+                    ),
+                  );
+                  return;
+                }
 
-            final success = await biometricService.authenticate();
+                final success = await biometricService.authenticate();
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  success
-                      ? 'Autentikasi biometrik berhasil'
-                      : 'Autentikasi biometrik gagal',
-                ),
-              ),
-            );
-          },
-          child: const Text('Tes Biometrik'),
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? 'Autentikasi biometrik berhasil'
+                          : 'Autentikasi biometrik gagal',
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Tes Biometrik'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () async {
+                await NotificationService.showInstantNotification();
+              },
+              child: const Text('Tes Notifikasi'),
+            ),
+          ],
         ),
       ),
     );
