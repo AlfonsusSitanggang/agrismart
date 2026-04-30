@@ -1,4 +1,5 @@
 import 'package:agrismart/features/location/pages/location_page.dart';
+import 'package:agrismart/features/minigame/pages/minigame_page.dart';
 import 'package:agrismart/features/timezone/pages/timezone_page.dart';
 import 'package:go_router/go_router.dart';
 import '../features/splash/pages/splash_page.dart';
@@ -19,6 +20,11 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/timezone',
       builder: (context, state) => const TimezonePage(),
+    ),
+
+    GoRoute(
+      path: '/minigame',
+      builder: (context, state) => const MinigamePage(),
     ),
   ],
 );
