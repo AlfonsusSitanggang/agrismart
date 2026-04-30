@@ -1,6 +1,11 @@
+import 'package:agrismart/core/services/notification_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'app/app.dart';
 
-void main() {
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.init();
   runApp(const AgriSmartApp());
 }
