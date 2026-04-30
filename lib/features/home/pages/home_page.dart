@@ -67,6 +67,7 @@ class HomePage extends StatelessWidget {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () async {
+                await NotificationService.requestPermission();
                 await NotificationService.showInstantNotification();
               },
               child: const Text('Tes Notifikasi'),
