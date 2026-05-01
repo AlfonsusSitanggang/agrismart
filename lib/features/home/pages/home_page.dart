@@ -3,6 +3,7 @@ import 'package:agrismart/core/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:agrismart/core/services/secure_storage_service.dart';
 import 'package:agrismart/features/auth/pages/login_page.dart';
+import 'package:go_router/go_router.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -71,6 +72,12 @@ class HomePage extends StatelessWidget {
                 await NotificationService.showInstantNotification();
               },
               child: const Text('Tes Notifikasi'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                context.push('/minigame');
+              },
+              child: const Text('Buka Minigame'),
             ),
           ],
         ),
