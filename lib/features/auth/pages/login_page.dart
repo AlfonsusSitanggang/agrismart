@@ -1,5 +1,6 @@
 import 'package:agrismart/core/services/auth_service.dart';
 import 'package:agrismart/core/services/biometric_service.dart';
+import 'package:agrismart/core/services/secure_storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,9 +17,11 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
   final BiometricService _biometricService = BiometricService();
+  final SecureStorageService _secureStorageService = SecureStorageService();
 
   bool _isPasswordHidden = true;
   bool _isLoading = false;
+  bool _isBiometricLoading = false;
 
   @override
   void dispose() {
@@ -63,36 +66,70 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _loginWithBiometric() async {
-    final isAvailable = await _biometricService.isBiometricAvailable();
+    setState(() {
+      _isLoading = true;
+    });
 
-    if (!isAvailable) {
+    try {
+      final token = await SecureStorageService().getToken();
+
+      if (token == null || token.isEmpty) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Belum ada sesi login. Silakan login biasa terlebih dahulu.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final isAvailable = await _biometricService.isBiometricAvailable();
+
+      if (!isAvailable) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Biometrik tidak tersedia di perangkat ini'),
+          ),
+        );
+        return;
+      }
+
+      final isAuthenticated = await _biometricService.authenticate();
+
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Biometrik tidak tersedia di perangkat ini'),
-        ),
-      );
-      return;
-    }
+      if (isAuthenticated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Autentikasi biometrik berhasil')),
+        );
 
-    final isAuthenticated = await _biometricService.authenticate();
+        context.go('/home');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Autentikasi biometrik gagal')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
 
-    if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Login biometrik gagal: $e')));
+    } finally {
+      if (!mounted) return;
 
-    if (isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Autentikasi biometrik berhasil')),
-      );
-
-      context.go('/home');
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Autentikasi biometrik gagal')),
-      );
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -180,10 +217,15 @@ class _LoginPageState extends State<LoginPage> {
                       : const Text('Login'),
                 ),
                 const SizedBox(height: 12),
-
                 OutlinedButton.icon(
-                  onPressed: _loginWithBiometric,
-                  icon: const Icon(Icons.fingerprint),
+                  onPressed: _isBiometricLoading ? null : _loginWithBiometric,
+                  icon: _isBiometricLoading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.fingerprint),
                   label: const Text('Masuk dengan Biometrik'),
                 ),
                 const SizedBox(height: 12),
