@@ -2,6 +2,7 @@ import 'package:agrismart/core/services/api_service.dart';
 import 'package:agrismart/core/services/secure_storage_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class SchedulesPage extends StatefulWidget {
   const SchedulesPage({super.key});
@@ -131,9 +132,14 @@ class _SchedulesPageState extends State<SchedulesPage> {
 
     final dio = ApiService().dio;
 
+    final rawDate = schedule['watering_date']?.toString() ?? '';
+    final formattedDate = DateFormat(
+      'yyyy-MM-dd',
+    ).format(DateTime.parse(rawDate));
+
     final response = await dio.put(
       '/schedules/${schedule['id']}',
-      data: {'watering_date': schedule['watering_date'], 'status': 'completed'},
+      data: {'watering_date': formattedDate, 'status': 'completed'},
       options: Options(
         headers: {'Authorization': 'Bearer $token'},
         validateStatus: (_) => true,
@@ -154,7 +160,6 @@ class _SchedulesPageState extends State<SchedulesPage> {
     }
   }
 
-  
   Future<void> _deleteSchedule(dynamic id) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -201,6 +206,52 @@ class _SchedulesPageState extends State<SchedulesPage> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gagal hapus jadwal: ${response.data}')),
+      );
+    }
+  }
+
+  Future<void> _editScheduleDate(Map<String, dynamic> schedule) async {
+    final token = await SecureStorageService().getToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception('Token login tidak ditemukan');
+    }
+
+    final rawDate = schedule['watering_date']?.toString() ?? '';
+    final initialDate = DateTime.tryParse(rawDate) ?? DateTime.now();
+
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2100),
+    );
+
+    if (pickedDate == null) return;
+
+    final formattedDate = DateFormat('yyyy-MM-dd').format(pickedDate);
+
+    final dio = ApiService().dio;
+
+    final response = await dio.put(
+      '/schedules/${schedule['id']}',
+      data: {'watering_date': formattedDate, 'status': schedule['status']},
+      options: Options(
+        headers: {'Authorization': 'Bearer $token'},
+        validateStatus: (_) => true,
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (response.statusCode == 200) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tanggal jadwal berhasil diperbarui')),
+      );
+      _reload();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal edit jadwal: ${response.data}')),
       );
     }
   }
@@ -357,6 +408,10 @@ class _SchedulesPageState extends State<SchedulesPage> {
                         ),
                         Column(
                           children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              onPressed: () => _editScheduleDate(schedule),
+                            ),
                             IconButton(
                               icon: Icon(
                                 isCompleted
