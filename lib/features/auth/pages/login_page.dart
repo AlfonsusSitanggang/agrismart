@@ -38,10 +38,21 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      await _authService.login(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+
+      await _authService.login(email: email, password: password);
+
+      final isAvailable = await _biometricService.isBiometricAvailable();
+      final isAlreadyEnabled = await _secureStorageService.isBiometricEnabled();
+
+      if (mounted && isAvailable && !isAlreadyEnabled) {
+        final shouldEnable = await _showBiometricDialog();
+
+        if (shouldEnable == true) {
+          await _secureStorageService.saveBiometricEnabled(true);
+        }
+      }
 
       if (!mounted) return;
 
@@ -56,13 +67,13 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Login gagal: $e')));
+    } finally {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
     }
-
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = false;
-    });
   }
 
   Future<void> _loginWithBiometric() async {
@@ -71,17 +82,28 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final token = await SecureStorageService().getToken();
+      final biometricEnabled = await _secureStorageService.isBiometricEnabled();
 
-      if (token == null || token.isEmpty) {
+      if (!biometricEnabled) {
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Belum ada sesi login. Silakan login biasa terlebih dahulu.',
-            ),
-          ),
+          const SnackBar(content: Text('Login biometrik belum diaktifkan')),
+        );
+        return;
+      }
+
+      final email = await _secureStorageService.getEmail();
+      final password = await _secureStorageService.getPassword();
+
+      if (email == null ||
+          password == null ||
+          email.isEmpty ||
+          password.isEmpty) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Data login biometrik belum tersedia')),
         );
         return;
       }
@@ -103,17 +125,22 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      if (isAuthenticated) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Autentikasi biometrik berhasil')),
-        );
-
-        context.go('/home');
-      } else {
+      if (!isAuthenticated) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Autentikasi biometrik gagal')),
         );
+        return;
       }
+
+      await _authService.login(email: email, password: password);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Login biometrik berhasil')));
+
+      context.go('/home');
     } catch (e) {
       if (!mounted) return;
 
@@ -129,7 +156,28 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  
+  Future<bool?> _showBiometricDialog() async {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Aktifkan Biometrik?'),
+        content: const Text(
+          'Apakah Anda ingin menggunakan sidik jari atau Face ID untuk login berikutnya?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Nanti saja'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Aktifkan'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

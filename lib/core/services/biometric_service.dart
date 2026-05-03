@@ -4,9 +4,17 @@ class BiometricService {
   final LocalAuthentication _localAuth = LocalAuthentication();
 
   Future<bool> isBiometricAvailable() async {
-    final canCheckBiometrics = await _localAuth.canCheckBiometrics;
-    final isDeviceSupported = await _localAuth.isDeviceSupported();
-    return canCheckBiometrics && isDeviceSupported;
+    try {
+      final canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      final isDeviceSupported = await _localAuth.isDeviceSupported();
+      final availableBiometrics = await _localAuth.getAvailableBiometrics();
+
+      return canCheckBiometrics &&
+          isDeviceSupported &&
+          availableBiometrics.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
   }
 
   Future<bool> authenticate() async {

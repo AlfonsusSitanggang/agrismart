@@ -22,6 +22,8 @@ class AuthService {
 
     if (token != null) {
       await _secureStorageService.saveToken(token);
+      await _secureStorageService.saveEmail(email);
+      await _secureStorageService.savePassword(password);
     } else {
       throw Exception('Token tidak ditemukan pada response');
     }
