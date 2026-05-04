@@ -71,6 +71,12 @@ class HomePage extends StatelessWidget {
         onTap: () => context.push('/schedules'),
       ),
       _HomeFeature(
+        title: 'Chatbot',
+        icon: Icons.smart_toy_outlined,
+        color: Colors.indigo,
+        onTap: () => context.push('/chatbot'),
+      ),
+      _HomeFeature(
         title: 'Minigame',
         icon: Icons.sports_esports_outlined,
         color: Colors.purple,
@@ -117,11 +123,7 @@ class HomePage extends StatelessWidget {
                   CircleAvatar(
                     radius: 28,
                     backgroundColor: Colors.green.shade200,
-                    child: const Icon(
-                      Icons.eco,
-                      color: Colors.green,
-                      size: 30,
-                    ),
+                    child: const Icon(Icons.eco, color: Colors.green, size: 30),
                   ),
                   const SizedBox(width: 16),
                   const Expanded(

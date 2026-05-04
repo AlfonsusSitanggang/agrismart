@@ -1,4 +1,5 @@
 import 'package:agrismart/core/services/api_service.dart';
+import 'package:agrismart/core/services/notification_service.dart';
 import 'package:agrismart/core/services/secure_storage_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -20,13 +21,16 @@ class _SchedulesPageState extends State<SchedulesPage> {
     _schedulesFuture = _fetchSchedules();
   }
 
-  Future<List<dynamic>> _fetchSchedules() async {
+  Future<String> _getToken() async {
     final token = await SecureStorageService().getToken();
-
     if (token == null || token.isEmpty) {
       throw Exception('Token login tidak ditemukan');
     }
+    return token;
+  }
 
+  Future<List<dynamic>> _fetchSchedules() async {
+    final token = await _getToken();
     final dio = ApiService().dio;
 
     final response = await dio.get(
@@ -47,22 +51,11 @@ class _SchedulesPageState extends State<SchedulesPage> {
     return result['data'] as List<dynamic>;
   }
 
-  Future<void> _reload() async {
-    setState(() {
-      _schedulesFuture = _fetchSchedules();
-    });
-  }
-
-  Future<void> _addDummySchedule() async {
-    final token = await SecureStorageService().getToken();
-
-    if (token == null || token.isEmpty) {
-      throw Exception('Token login tidak ditemukan');
-    }
-
+  Future<List<dynamic>> _fetchPlants() async {
+    final token = await _getToken();
     final dio = ApiService().dio;
 
-    final plantsResponse = await dio.get(
+    final response = await dio.get(
       '/plants',
       options: Options(
         headers: {'Authorization': 'Bearer $token'},
@@ -70,39 +63,33 @@ class _SchedulesPageState extends State<SchedulesPage> {
       ),
     );
 
-    if (plantsResponse.statusCode != 200) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal mengambil tanaman: ${plantsResponse.data}'),
-        ),
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Gagal mengambil tanaman: ${response.statusCode} - ${response.data}',
       );
-      return;
     }
 
-    final plantsResult = Map<String, dynamic>.from(plantsResponse.data);
-    final plants = plantsResult['data'] as List<dynamic>;
+    final result = Map<String, dynamic>.from(response.data);
+    return result['data'] as List<dynamic>;
+  }
 
-    if (plants.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tambahkan tanaman dulu sebelum membuat jadwal'),
-        ),
-      );
-      return;
-    }
+  Future<void> _reload() async {
+    setState(() {
+      _schedulesFuture = _fetchSchedules();
+    });
+    await _schedulesFuture;
+  }
 
-    final firstPlant = plants.first as Map<String, dynamic>;
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
-    final wateringDate =
-        '${tomorrow.year.toString().padLeft(4, '0')}-'
-        '${tomorrow.month.toString().padLeft(2, '0')}-'
-        '${tomorrow.day.toString().padLeft(2, '0')}';
+  Future<void> _addSchedule({
+    required int plantId,
+    required String wateringDate,
+  }) async {
+    final token = await _getToken();
+    final dio = ApiService().dio;
 
     final response = await dio.post(
       '/schedules',
-      data: {'plant_id': firstPlant['id'], 'watering_date': wateringDate},
+      data: {'plant_id': plantId, 'watering_date': wateringDate},
       options: Options(
         headers: {'Authorization': 'Bearer $token'},
         validateStatus: (_) => true,
@@ -123,13 +110,191 @@ class _SchedulesPageState extends State<SchedulesPage> {
     }
   }
 
-  Future<void> _markScheduleCompleted(Map<String, dynamic> schedule) async {
-    final token = await SecureStorageService().getToken();
+  Future<void> _showAddScheduleDialog() async {
+    List<dynamic> plants = [];
 
-    if (token == null || token.isEmpty) {
-      throw Exception('Token login tidak ditemukan');
+    try {
+      plants = await _fetchPlants();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal mengambil tanaman: $e')));
+      return;
     }
 
+    if (plants.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tambahkan tanaman dulu sebelum membuat jadwal'),
+        ),
+      );
+      return;
+    }
+
+    int? selectedPlantId = plants.first['id'] as int;
+    String selectedPlantName =
+        (plants.first as Map<String, dynamic>)['name']?.toString() ?? 'Tanaman';
+    DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
+    TimeOfDay selectedTime = TimeOfDay.now();
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final formattedDate = DateFormat('yyyy-MM-dd').format(selectedDate);
+            final formattedTime = selectedTime.format(context);
+
+            return AlertDialog(
+              title: const Text('Tambah Jadwal Penyiraman'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<int>(
+                      value: selectedPlantId,
+                      decoration: const InputDecoration(
+                        labelText: 'Pilih Tanaman',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: plants.map((plant) {
+                        final item = plant as Map<String, dynamic>;
+                        return DropdownMenuItem<int>(
+                          value: item['id'] as int,
+                          child: Text(item['name']?.toString() ?? '-'),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        final selectedPlant =
+                            plants.firstWhere(
+                                  (plant) =>
+                                      (plant as Map<String, dynamic>)['id'] ==
+                                      value,
+                                )
+                                as Map<String, dynamic>;
+
+                        setDialogState(() {
+                          selectedPlantId = value;
+                          selectedPlantName =
+                              selectedPlant['name']?.toString() ?? 'Tanaman';
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    InkWell(
+                      onTap: () async {
+                        final pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime(2100),
+                        );
+
+                        if (pickedDate != null) {
+                          setDialogState(() {
+                            selectedDate = pickedDate;
+                          });
+                        }
+                      },
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Tanggal Siram',
+                          border: OutlineInputBorder(),
+                          suffixIcon: Icon(Icons.calendar_today),
+                        ),
+                        child: Text(formattedDate),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    InkWell(
+                      onTap: () async {
+                        final pickedTime = await showTimePicker(
+                          context: context,
+                          initialTime: selectedTime,
+                        );
+
+                        if (pickedTime != null) {
+                          setDialogState(() {
+                            selectedTime = pickedTime;
+                          });
+                        }
+                      },
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Jam Notifikasi',
+                          border: OutlineInputBorder(),
+                          suffixIcon: Icon(Icons.access_time),
+                        ),
+                        child: Text(formattedTime),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Batal'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (selectedPlantId == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Silakan pilih tanaman')),
+                      );
+                      return;
+                    }
+
+                    final wateringDate = DateFormat(
+                      'yyyy-MM-dd',
+                    ).format(selectedDate);
+
+                    final scheduledDateTime = DateTime(
+                      selectedDate.year,
+                      selectedDate.month,
+                      selectedDate.day,
+                      selectedTime.hour,
+                      selectedTime.minute,
+                    );
+
+                    Navigator.pop(dialogContext);
+
+                    await _addSchedule(
+                      plantId: selectedPlantId!,
+                      wateringDate: wateringDate,
+                    );
+
+                    await NotificationService.scheduleNotification(
+                      id:
+                          selectedPlantId! +
+                          selectedDate.millisecondsSinceEpoch,
+                      title: 'Pengingat Penyiraman',
+                      body:
+                          'Saatnya menyiram tanaman $selectedPlantName pada pukul ${selectedTime.format(context)}',
+                      scheduledDateTime: scheduledDateTime,
+                    );
+
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Notifikasi berhasil dijadwalkan'),
+                      ),
+                    );
+                  },
+                  child: const Text('Simpan'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _markScheduleCompleted(Map<String, dynamic> schedule) async {
+    final token = await _getToken();
     final dio = ApiService().dio;
 
     final rawDate = schedule['watering_date']?.toString() ?? '';
@@ -163,16 +328,16 @@ class _SchedulesPageState extends State<SchedulesPage> {
   Future<void> _deleteSchedule(dynamic id) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Konfirmasi'),
         content: const Text('Yakin ingin menghapus data ini?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Hapus'),
           ),
         ],
@@ -180,12 +345,8 @@ class _SchedulesPageState extends State<SchedulesPage> {
     );
 
     if (confirm != true) return;
-    final token = await SecureStorageService().getToken();
 
-    if (token == null || token.isEmpty) {
-      throw Exception('Token login tidak ditemukan');
-    }
-
+    final token = await _getToken();
     final dio = ApiService().dio;
 
     final response = await dio.delete(
@@ -210,12 +371,9 @@ class _SchedulesPageState extends State<SchedulesPage> {
     }
   }
 
-  Future<void> _editScheduleDate(Map<String, dynamic> schedule) async {
-    final token = await SecureStorageService().getToken();
-
-    if (token == null || token.isEmpty) {
-      throw Exception('Token login tidak ditemukan');
-    }
+  Future<void> _editScheduleDateTime(Map<String, dynamic> schedule) async {
+    final token = await _getToken();
+    final dio = ApiService().dio;
 
     final rawDate = schedule['watering_date']?.toString() ?? '';
     final initialDate = DateTime.tryParse(rawDate) ?? DateTime.now();
@@ -229,9 +387,22 @@ class _SchedulesPageState extends State<SchedulesPage> {
 
     if (pickedDate == null) return;
 
-    final formattedDate = DateFormat('yyyy-MM-dd').format(pickedDate);
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDate),
+    );
 
-    final dio = ApiService().dio;
+    if (pickedTime == null) return;
+
+    final updatedDateTime = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+
+    final formattedDate = DateFormat('yyyy-MM-dd').format(updatedDateTime);
 
     final response = await dio.put(
       '/schedules/${schedule['id']}',
@@ -245,8 +416,20 @@ class _SchedulesPageState extends State<SchedulesPage> {
     if (!mounted) return;
 
     if (response.statusCode == 200) {
+      await NotificationService.cancelNotification(schedule['id']);
+
+      await NotificationService.scheduleNotification(
+        id: schedule['id'],
+        title: 'Pengingat Penyiraman',
+        body:
+            'Saatnya menyiram tanaman ${schedule['plant_name'] ?? 'Tanaman'} pada pukul ${pickedTime.format(context)}',
+        scheduledDateTime: updatedDateTime,
+      );
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tanggal jadwal berhasil diperbarui')),
+        const SnackBar(
+          content: Text('Tanggal dan jam jadwal berhasil diperbarui'),
+        ),
       );
       _reload();
     } else {
@@ -256,13 +439,22 @@ class _SchedulesPageState extends State<SchedulesPage> {
     }
   }
 
+  String _formatDateDisplay(String rawDate) {
+    final parsed = DateTime.tryParse(rawDate);
+    if (parsed == null) return rawDate;
+    return DateFormat('dd MMM yyyy').format(parsed);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Jadwal Penyiraman'),
         actions: [
-          IconButton(onPressed: _addDummySchedule, icon: const Icon(Icons.add)),
+          IconButton(
+            onPressed: _showAddScheduleDialog,
+            icon: const Icon(Icons.add),
+          ),
         ],
       ),
       body: FutureBuilder<List<dynamic>>(
@@ -325,9 +517,9 @@ class _SchedulesPageState extends State<SchedulesPage> {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
-                      onPressed: _addDummySchedule,
+                      onPressed: _showAddScheduleDialog,
                       icon: const Icon(Icons.add),
-                      label: const Text('Tambah Dummy'),
+                      label: const Text('Tambah Jadwal'),
                     ),
                   ],
                 ),
@@ -380,7 +572,9 @@ class _SchedulesPageState extends State<SchedulesPage> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              Text('Tanggal: ${schedule['watering_date']}'),
+                              Text(
+                                'Tanggal: ${_formatDateDisplay(schedule['watering_date']?.toString() ?? '-')}',
+                              ),
                               const SizedBox(height: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -410,7 +604,7 @@ class _SchedulesPageState extends State<SchedulesPage> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.edit, color: Colors.blue),
-                              onPressed: () => _editScheduleDate(schedule),
+                              onPressed: () => _editScheduleDateTime(schedule),
                             ),
                             IconButton(
                               icon: Icon(

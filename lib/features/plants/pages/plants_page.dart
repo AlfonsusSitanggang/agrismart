@@ -2,6 +2,7 @@ import 'package:agrismart/core/services/api_service.dart';
 import 'package:agrismart/core/services/secure_storage_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class PlantsPage extends StatefulWidget {
   const PlantsPage({super.key});
@@ -19,7 +20,104 @@ class _PlantsPageState extends State<PlantsPage> {
     _plantsFuture = _fetchPlants();
   }
 
-  Future<void> _addDummyPlant() async {
+  Future<void> _showAddPlantDialog() async {
+    final nameController = TextEditingController();
+    final speciesController = TextEditingController();
+    final frequencyController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Tambah Tanaman'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Nama tanaman'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: speciesController,
+                  decoration: const InputDecoration(labelText: 'Spesies'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: frequencyController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Frekuensi siram (hari)',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = nameController.text.trim();
+                final species = speciesController.text.trim();
+                final frequencyText = frequencyController.text.trim();
+                final frequency = int.tryParse(frequencyText);
+
+                // print('=== DEBUG ADD PLANT ===');
+                // print('name = "${nameController.text.trim()}"');
+                // print('species = "${speciesController.text.trim()}"');
+                // print('frequencyText = "${frequencyController.text.trim()}"');
+                // print('=== END DEBUG ===');
+
+                if (name.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Nama tanaman wajib diisi')),
+                  );
+                  return;
+                }
+
+                if (frequencyText.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Frekuensi siram wajib diisi'),
+                    ),
+                  );
+                  return;
+                }
+
+                if (frequency == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Frekuensi siram harus berupa angka'),
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(dialogContext);
+
+                await _addPlant(
+                  name: name,
+                  species: species,
+                  watering_Frequency: frequency,
+                );
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _addPlant({
+    required String name,
+    required String species,
+    required int watering_Frequency,
+  }) async {
     final token = await SecureStorageService().getToken();
 
     if (token == null || token.isEmpty) {
@@ -28,18 +126,31 @@ class _PlantsPageState extends State<PlantsPage> {
 
     final dio = ApiService().dio;
 
+    // print('=== DEBUG REQUEST BODY ===');
+    // print({
+    //   'name': name,
+    //   'species': species.isEmpty ? null : species,
+    //   'watering_frequency': watering_Frequency,
+    // });
+    // print('=== END REQUEST BODY ===');
+
     final response = await dio.post(
       '/plants',
       data: {
-        'name': 'Cabai',
-        'species': 'Capsicum annuum',
-        'watering_frequency': 2,
+        'name': name,
+        'species': species.isEmpty ? null : species,
+        'watering_frequency': watering_Frequency,
       },
       options: Options(
         headers: {'Authorization': 'Bearer $token'},
         validateStatus: (_) => true,
       ),
     );
+
+    // print('=== DEBUG RESPONSE ===');
+    // print('statusCode = ${response.statusCode}');
+    // print('data = ${response.data}');
+    // print('=== END RESPONSE ===');
 
     if (!mounted) return;
 
@@ -152,7 +263,7 @@ class _PlantsPageState extends State<PlantsPage> {
                   id: plant['id'],
                   name: nameController.text.trim(),
                   species: speciesController.text.trim(),
-                  wateringFrequency: frequency,
+                  watering_Frequency: frequency,
                 );
               },
               child: const Text('Simpan'),
@@ -167,7 +278,7 @@ class _PlantsPageState extends State<PlantsPage> {
     required dynamic id,
     required String name,
     required String species,
-    required int wateringFrequency,
+    required int watering_Frequency,
   }) async {
     final token = await SecureStorageService().getToken();
 
@@ -182,7 +293,7 @@ class _PlantsPageState extends State<PlantsPage> {
       data: {
         'name': name,
         'species': species.isEmpty ? null : species,
-        'watering_frequency': wateringFrequency,
+        'watering_frequency': watering_Frequency,
       },
       options: Options(
         headers: {'Authorization': 'Bearer $token'},
@@ -210,7 +321,15 @@ class _PlantsPageState extends State<PlantsPage> {
       appBar: AppBar(
         title: const Text('Tanaman Saya'),
         actions: [
-          IconButton(onPressed: _addDummyPlant, icon: const Icon(Icons.add)),
+          IconButton(
+            onPressed: () => context.push('/plant-catalog'),
+            icon: const Icon(Icons.menu_book_outlined),
+            tooltip: 'Katalog Tanaman',
+          ),
+          IconButton(
+            onPressed: _showAddPlantDialog,
+            icon: const Icon(Icons.add),
+          ),
         ],
       ),
       body: FutureBuilder<List<dynamic>>(
@@ -277,9 +396,9 @@ class _PlantsPageState extends State<PlantsPage> {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
-                      onPressed: _addDummyPlant,
+                      onPressed: _showAddPlantDialog,
                       icon: const Icon(Icons.add),
-                      label: const Text('Tambah Dummy'),
+                      label: const Text('Tambah Tanaman'),
                     ),
                   ],
                 ),
