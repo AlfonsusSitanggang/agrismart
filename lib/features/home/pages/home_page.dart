@@ -1,24 +1,49 @@
 import 'package:agrismart/core/services/biometric_service.dart';
 import 'package:agrismart/core/services/notification_service.dart';
 import 'package:agrismart/core/services/secure_storage_service.dart';
+import 'package:agrismart/features/home/widgets/world_clock_card.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
-  Future<void> _logout(BuildContext context) async {
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  bool _showWorldClock = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHomeSettings();
+  }
+
+  Future<void> _loadHomeSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (!mounted) return;
+
+    setState(() {
+      _showWorldClock = prefs.getBool('show_world_clock') ?? true;
+    });
+  }
+
+  Future<void> _logout() async {
     await SecureStorageService().deleteToken();
 
-    if (!context.mounted) return;
+    if (!mounted) return;
     context.go('/login');
   }
 
-  Future<void> _testBiometric(BuildContext context) async {
+  Future<void> _testBiometric() async {
     final biometricService = BiometricService();
     final available = await biometricService.isBiometricAvailable();
 
-    if (!context.mounted) return;
+    if (!mounted) return;
 
     if (!available) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -31,7 +56,7 @@ class HomePage extends StatelessWidget {
 
     final success = await biometricService.authenticate();
 
-    if (!context.mounted) return;
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -44,9 +69,17 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Future<void> _testNotification(BuildContext context) async {
+  Future<void> _testNotification() async {
     await NotificationService.requestPermission();
     await NotificationService.showInstantNotification();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Notifikasi percobaan dikirim'),
+      ),
+    );
   }
 
   @override
@@ -86,13 +119,13 @@ class HomePage extends StatelessWidget {
         title: 'Biometrik',
         icon: Icons.fingerprint,
         color: Colors.teal,
-        onTap: () => _testBiometric(context),
+        onTap: _testBiometric,
       ),
       _HomeFeature(
         title: 'Notifikasi',
         icon: Icons.notifications_active_outlined,
         color: Colors.redAccent,
-        onTap: () => _testNotification(context),
+        onTap: _testNotification,
       ),
     ];
 
@@ -102,7 +135,7 @@ class HomePage extends StatelessWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            onPressed: () => _logout(context),
+            onPressed: _logout,
             icon: const Icon(Icons.logout),
           ),
         ],
@@ -148,7 +181,11 @@ class HomePage extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          if (_showWorldClock) const WorldClockCard(),
+          if (_showWorldClock) const SizedBox(height: 16),
+
           const Text(
             'Fitur Utama',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
