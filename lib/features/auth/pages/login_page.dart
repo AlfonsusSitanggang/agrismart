@@ -60,7 +60,7 @@ class _LoginPageState extends State<LoginPage> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Login berhasil')));
 
-      context.go('/home');
+      context.go('/main');
     } catch (e) {
       if (!mounted) return;
 
@@ -140,7 +140,7 @@ class _LoginPageState extends State<LoginPage> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Login biometrik berhasil')));
 
-      context.go('/home');
+      context.go('/main');
     } catch (e) {
       if (!mounted) return;
 
