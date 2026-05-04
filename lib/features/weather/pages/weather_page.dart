@@ -14,6 +14,7 @@ class WeatherPage extends StatefulWidget {
 
 class _WeatherPageState extends State<WeatherPage> {
   late Future<Map<String, dynamic>> _weatherFuture;
+  String _currentCoordinates = '-';
 
   @override
   void initState() {
@@ -24,19 +25,26 @@ class _WeatherPageState extends State<WeatherPage> {
   Future<Position> _determinePosition() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      throw Exception('Layanan lokasi nonaktif');
+      await Geolocator.openLocationSettings();
+      throw Exception(
+        'Layanan lokasi nonaktif. Silakan aktifkan GPS terlebih dahulu.',
+      );
     }
 
     LocationPermission permission = await Geolocator.checkPermission();
+
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        throw Exception('Izin lokasi ditolak');
+        throw Exception('Izin lokasi ditolak.');
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
-      throw Exception('Izin lokasi ditolak permanen');
+      await Geolocator.openAppSettings();
+      throw Exception(
+        'Izin lokasi ditolak permanen. Silakan aktifkan izin lokasi di pengaturan aplikasi.',
+      );
     }
 
     return await Geolocator.getCurrentPosition(
@@ -48,12 +56,16 @@ class _WeatherPageState extends State<WeatherPage> {
     final position = await _determinePosition();
     final token = await SecureStorageService().getToken();
 
+    setState(() {
+      _currentCoordinates =
+          '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
+    });
+
     if (token == null || token.isEmpty) {
       throw Exception('Token login tidak ditemukan');
     }
 
     final dio = ApiService().dio;
-
 
     final response = await dio.get(
       '/proxy/weather',
@@ -70,17 +82,20 @@ class _WeatherPageState extends State<WeatherPage> {
       );
     }
 
-    return Map<String, dynamic>.from(response.data);
-  }
+    final result = Map<String, dynamic>.from(response.data);
 
-  
+    result['coordinates'] =
+        '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
+
+    return result;
+  }
 
   Future<void> _retry() async {
     setState(() {
       _weatherFuture = _fetchWeather();
     });
   }
-  
+
   Widget _infoTile({
     required IconData icon,
     required String title,
@@ -166,6 +181,7 @@ class _WeatherPageState extends State<WeatherPage> {
           }
 
           final result = snapshot.data!;
+          final coordinates = result['coordinates']?.toString() ?? '-';
           final data = result['data'];
           final city = data['name']?.toString() ?? '-';
           final temp = data['main']?['temp']?.toString() ?? '-';
@@ -176,7 +192,7 @@ class _WeatherPageState extends State<WeatherPage> {
               ? data['weather'][0]['description']?.toString() ?? '-'
               : '-';
           final humidity = data['main']?['humidity']?.toString() ?? '-';
-
+          final windSpeed = data['wind']?['speed']?.toString() ?? '-';
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -223,6 +239,13 @@ class _WeatherPageState extends State<WeatherPage> {
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
+              _infoTile(
+                icon: Icons.my_location,
+                title: 'Koordinat GPS',
+                value: coordinates,
+                color: Colors.green,
+              ),
               const SizedBox(height: 20),
               const Text(
                 'Detail Cuaca',
@@ -241,6 +264,13 @@ class _WeatherPageState extends State<WeatherPage> {
                 title: 'Suhu',
                 value: '$temp °C',
                 color: Colors.orange,
+              ),
+              const SizedBox(height: 12),
+              _infoTile(
+                icon: Icons.air,
+                title: 'Kecepatan Angin',
+                value: '$windSpeed m/s',
+                color: Colors.teal,
               ),
               const SizedBox(height: 12),
               _infoTile(
