@@ -1,5 +1,6 @@
 import 'package:agrismart/core/services/biometric_service.dart';
 import 'package:agrismart/core/services/notification_service.dart';
+import 'package:agrismart/features/home/widgets/weather_card.dart';
 import 'package:agrismart/features/home/widgets/world_clock_card.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -72,30 +73,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final quickActions = [
-      HomeActionItem(
-        title: 'Tanaman',
-        subtitle: 'Kelola data tanaman',
-        icon: Icons.local_florist_outlined,
-        color: Colors.green,
-        onTap: () => context.push('/plants'),
-      ),
-      HomeActionItem(
-        title: 'Jadwal',
-        subtitle: 'Atur penyiraman',
-        icon: Icons.calendar_month_outlined,
-        color: Colors.orange,
-        onTap: () => context.push('/schedules'),
-      ),
-      HomeActionItem(
-        title: 'Cuaca',
-        subtitle: 'Lihat cuaca saat ini',
-        icon: Icons.cloud_outlined,
-        color: Colors.blue,
-        onTap: () => context.push('/weather'),
-      ),
-    ];
-
     final additionalFeatures = [
       HomeActionItem(
         title: 'Chatbot',
@@ -112,19 +89,26 @@ class _HomePageState extends State<HomePage> {
         onTap: () => context.push('/minigame'),
       ),
       HomeActionItem(
-        title: 'Biometrik',
-        subtitle: 'Tes autentikasi',
-        icon: Icons.fingerprint,
+        title: 'Kurs Uang',
+        subtitle: 'Konversi mata uang',
+        icon: Icons.currency_exchange,
         color: Colors.teal,
-        onTap: _testBiometric,
+        onTap: () => context.push('/exchange'),
       ),
-      HomeActionItem(
-        title: 'Notifikasi',
-        subtitle: 'Tes pengingat',
-        icon: Icons.notifications_active_outlined,
-        color: Colors.redAccent,
-        onTap: _testNotification,
-      ),
+      // HomeActionItem(
+      //   title: 'Biometrik',
+      //   subtitle: 'Tes autentikasi',
+      //   icon: Icons.fingerprint,
+      //   color: Colors.teal,
+      //   onTap: _testBiometric,
+      // ),
+      // HomeActionItem(
+      //   title: 'Notifikasi',
+      //   subtitle: 'Tes pengingat',
+      //   icon: Icons.notifications_active_outlined,
+      //   color: Colors.redAccent,
+      //   onTap: _testNotification,
+      // ),
     ];
 
     return Scaffold(
@@ -180,6 +164,9 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 16),
           ],
 
+          const WeatherCard(),
+          const SizedBox(height: 16),
+
           const _SectionTitle(title: 'Ringkasan Cepat'),
           const SizedBox(height: 12),
           Row(
@@ -227,23 +214,8 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 20),
 
-          const _SectionTitle(title: 'Quick Actions'),
           const SizedBox(height: 12),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: quickActions.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.95,
-            ),
-            itemBuilder: (context, index) {
-              final item = quickActions[index];
-              return _ActionCard(item: item);
-            },
-          ),
+
           const SizedBox(height: 20),
 
           const _SectionTitle(title: 'Fitur Tambahan'),

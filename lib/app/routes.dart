@@ -2,6 +2,7 @@ import 'package:agrismart/features/auth/pages/login_page.dart';
 import 'package:agrismart/features/auth/pages/register_page.dart';
 import 'package:agrismart/features/chatbot/pages/chatbot_page.dart';
 import 'package:agrismart/features/minigame/pages/minigame_page.dart';
+import 'package:agrismart/features/moneychanger/pages/money_exchange_page.dart';
 import 'package:agrismart/features/navigation/main_navigation_page.dart';
 import 'package:agrismart/features/plants/pages/plant_catalog_page.dart';
 import 'package:agrismart/features/plants/pages/plants_page.dart';
@@ -51,7 +52,7 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/minigame',
-      builder: (context, state) => const MinigamePage(),
+      builder: (context, state) => MinigamePage(),
     ),
     GoRoute(path: '/chatbot', builder: (context, state) => const ChatbotPage()),
     GoRoute(
@@ -70,6 +71,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/profile-page',
       builder: (context, state) => const ProfilePage(),
+    ),
+    GoRoute(
+      path: '/exchange',
+      builder: (context, state) => const ExchangePage(),
     ),
   ],
 );

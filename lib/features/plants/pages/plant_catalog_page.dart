@@ -225,10 +225,7 @@ class _PlantCatalogPageState extends State<PlantCatalogPage> {
                                             ),
                                           ),
                                           const SizedBox(height: 8),
-                                          ElevatedButton(
-                                            onPressed: () => _addPlant(plant),
-                                            child: const Text('Tambah'),
-                                          ),
+                                          
                                         ],
                                       ),
                                     ),
