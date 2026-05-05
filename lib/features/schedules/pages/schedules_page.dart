@@ -29,6 +29,18 @@ class _SchedulesPageState extends State<SchedulesPage> {
     return token;
   }
 
+  String _toBackendDateTime(DateTime dateTime) {
+    return DateFormat('yyyy-MM-dd HH:mm:ss').format(dateTime);
+  }
+
+  DateTime? _parseServerDate(String rawDate) {
+    try {
+      return DateTime.tryParse(rawDate);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<List<dynamic>> _fetchSchedules() async {
     final token = await _getToken();
     final dio = ApiService().dio;
@@ -48,7 +60,7 @@ class _SchedulesPageState extends State<SchedulesPage> {
     }
 
     final result = Map<String, dynamic>.from(response.data);
-    return result['data'] as List<dynamic>;
+    return List<dynamic>.from(result['data'] ?? []);
   }
 
   Future<List<dynamic>> _fetchPlants() async {
@@ -70,7 +82,7 @@ class _SchedulesPageState extends State<SchedulesPage> {
     }
 
     final result = Map<String, dynamic>.from(response.data);
-    return result['data'] as List<dynamic>;
+    return List<dynamic>.from(result['data'] ?? []);
   }
 
   Future<void> _reload() async {
@@ -82,7 +94,7 @@ class _SchedulesPageState extends State<SchedulesPage> {
 
   Future<void> _addSchedule({
     required int plantId,
-    required String wateringDate,
+    required DateTime scheduledDateTime,
   }) async {
     final token = await _getToken();
     final dio = ApiService().dio;
@@ -91,7 +103,7 @@ class _SchedulesPageState extends State<SchedulesPage> {
       '/schedules',
       data: {
         'plant_id': plantId,
-        'watering_date': wateringDate,
+        'watering_date': _toBackendDateTime(scheduledDateTime),
       },
       options: Options(
         headers: {'Authorization': 'Bearer $token'},
@@ -101,10 +113,28 @@ class _SchedulesPageState extends State<SchedulesPage> {
 
     if (!mounted) return;
 
-    if (response.statusCode == 201 || response.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Jadwal berhasil ditambahkan')),
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final responseMap = Map<String, dynamic>.from(response.data);
+      final newSchedule = Map<String, dynamic>.from(responseMap['data'] ?? {});
+
+      final scheduleId =
+          int.tryParse(newSchedule['id']?.toString() ?? '') ??
+          (scheduledDateTime.millisecondsSinceEpoch ~/ 1000);
+
+      await NotificationService.scheduleNotification(
+        id: scheduleId,
+        title: 'Pengingat Penyiraman',
+        body:
+            'Saatnya menyiram tanaman pada pukul ${DateFormat('HH:mm').format(scheduledDateTime)}',
+        scheduledDateTime: scheduledDateTime,
       );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Jadwal & notifikasi berhasil ditambahkan'),
+        ),
+      );
+
       await _reload();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -120,9 +150,9 @@ class _SchedulesPageState extends State<SchedulesPage> {
       plants = await _fetchPlants();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mengambil tanaman: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal mengambil tanaman: $e')));
       return;
     }
 
@@ -137,8 +167,6 @@ class _SchedulesPageState extends State<SchedulesPage> {
     }
 
     int? selectedPlantId = (plants.first as Map<String, dynamic>)['id'] as int;
-    String selectedPlantName =
-        (plants.first as Map<String, dynamic>)['name']?.toString() ?? 'Tanaman';
     DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
     TimeOfDay selectedTime = TimeOfDay.now();
 
@@ -157,7 +185,7 @@ class _SchedulesPageState extends State<SchedulesPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<int>(
-                      initialValue: selectedPlantId,
+                      value: selectedPlantId,
                       decoration: const InputDecoration(
                         labelText: 'Pilih Tanaman',
                         border: OutlineInputBorder(),
@@ -170,16 +198,8 @@ class _SchedulesPageState extends State<SchedulesPage> {
                         );
                       }).toList(),
                       onChanged: (value) {
-                        final selectedPlant = plants.firstWhere(
-                              (plant) =>
-                                  (plant as Map<String, dynamic>)['id'] == value,
-                            )
-                            as Map<String, dynamic>;
-
                         setDialogState(() {
                           selectedPlantId = value;
-                          selectedPlantName =
-                              selectedPlant['name']?.toString() ?? 'Tanaman';
                         });
                       },
                     ),
@@ -248,9 +268,6 @@ class _SchedulesPageState extends State<SchedulesPage> {
                       return;
                     }
 
-                    final wateringDate =
-                        DateFormat('yyyy-MM-dd').format(selectedDate);
-
                     final scheduledDateTime = DateTime(
                       selectedDate.year,
                       selectedDate.month,
@@ -259,30 +276,22 @@ class _SchedulesPageState extends State<SchedulesPage> {
                       selectedTime.minute,
                     );
 
-                    final notificationBody =
-                        'Saatnya menyiram tanaman $selectedPlantName pada pukul '
-                        '${selectedTime.format(dialogBuilderContext)}';
+                    if (scheduledDateTime.isBefore(DateTime.now())) {
+                      ScaffoldMessenger.of(dialogBuilderContext).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Waktu jadwal tidak boleh di masa lalu',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
 
                     Navigator.pop(dialogContext);
 
                     await _addSchedule(
                       plantId: selectedPlantId!,
-                      wateringDate: wateringDate,
-                    );
-
-                    await NotificationService.scheduleNotification(
-                      id: selectedPlantId! +
-                          selectedDate.millisecondsSinceEpoch,
-                      title: 'Pengingat Penyiraman',
-                      body: notificationBody,
                       scheduledDateTime: scheduledDateTime,
-                    );
-
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Notifikasi berhasil dijadwalkan'),
-                      ),
                     );
                   },
                   child: const Text('Simpan'),
@@ -300,8 +309,9 @@ class _SchedulesPageState extends State<SchedulesPage> {
 
     try {
       return plants.firstWhere(
-        (plant) => (plant as Map<String, dynamic>)['id'] == plantId,
-      ) as Map<String, dynamic>;
+            (plant) => (plant as Map<String, dynamic>)['id'] == plantId,
+          )
+          as Map<String, dynamic>;
     } catch (_) {
       return null;
     }
@@ -311,7 +321,7 @@ class _SchedulesPageState extends State<SchedulesPage> {
     required String currentWateringDate,
     required int frequencyDays,
   }) {
-    final currentDate = DateTime.parse(currentWateringDate);
+    final currentDate = _parseServerDate(currentWateringDate) ?? DateTime.now();
     return currentDate.add(Duration(days: frequencyDays));
   }
 
@@ -330,12 +340,19 @@ class _SchedulesPageState extends State<SchedulesPage> {
       return;
     }
 
-    final formattedDate = DateFormat('yyyy-MM-dd').format(DateTime.parse(rawDate));
+    final parsedRawDate = _parseServerDate(rawDate);
+    if (parsedRawDate == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Format tanggal jadwal tidak valid')),
+      );
+      return;
+    }
 
     final response = await dio.put(
       '/schedules/${schedule['id']}',
       data: {
-        'watering_date': formattedDate,
+        'watering_date': _toBackendDateTime(parsedRawDate),
         'status': 'completed',
       },
       options: Options(
@@ -348,6 +365,8 @@ class _SchedulesPageState extends State<SchedulesPage> {
 
     if (response.statusCode == 200) {
       try {
+        await NotificationService.cancelNotification(schedule['id']);
+
         final plant = await _findPlantById(plantId);
 
         if (!mounted) return;
@@ -386,13 +405,11 @@ class _SchedulesPageState extends State<SchedulesPage> {
           frequencyDays: int.parse(frequency.toString()),
         );
 
-        final nextWateringDate = DateFormat('yyyy-MM-dd').format(nextDate);
-
         final createResponse = await dio.post(
           '/schedules',
           data: {
             'plant_id': plantId,
-            'watering_date': nextWateringDate,
+            'watering_date': _toBackendDateTime(nextDate),
           },
           options: Options(
             headers: {'Authorization': 'Bearer $token'},
@@ -404,10 +421,26 @@ class _SchedulesPageState extends State<SchedulesPage> {
 
         if (createResponse.statusCode == 200 ||
             createResponse.statusCode == 201) {
+          final createMap = Map<String, dynamic>.from(createResponse.data);
+          final nextSchedule = Map<String, dynamic>.from(
+            createMap['data'] ?? {},
+          );
+          final nextScheduleId =
+              int.tryParse(nextSchedule['id']?.toString() ?? '') ??
+              (nextDate.millisecondsSinceEpoch ~/ 1000);
+
+          await NotificationService.scheduleNotification(
+            id: nextScheduleId,
+            title: 'Pengingat Penyiraman',
+            body:
+                'Saatnya menyiram tanaman lagi pada pukul ${DateFormat('HH:mm').format(nextDate)}',
+            scheduledDateTime: nextDate,
+          );
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Jadwal selesai. Jadwal berikutnya dibuat untuk $nextWateringDate',
+                'Jadwal selesai. Jadwal berikutnya dibuat untuk ${DateFormat('dd MMM yyyy HH:mm').format(nextDate)}',
               ),
             ),
           );
@@ -475,9 +508,11 @@ class _SchedulesPageState extends State<SchedulesPage> {
     if (!mounted) return;
 
     if (response.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Jadwal berhasil dihapus')),
-      );
+      await NotificationService.cancelNotification(id);
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Jadwal berhasil dihapus')));
       await _reload();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -491,7 +526,7 @@ class _SchedulesPageState extends State<SchedulesPage> {
     final dio = ApiService().dio;
 
     final rawDate = schedule['watering_date']?.toString() ?? '';
-    final initialDate = DateTime.tryParse(rawDate) ?? DateTime.now();
+    final initialDate = _parseServerDate(rawDate) ?? DateTime.now();
 
     final pickedDate = await showDatePicker(
       context: context,
@@ -517,12 +552,10 @@ class _SchedulesPageState extends State<SchedulesPage> {
       pickedTime.minute,
     );
 
-    final formattedDate = DateFormat('yyyy-MM-dd').format(updatedDateTime);
-
     final response = await dio.put(
       '/schedules/${schedule['id']}',
       data: {
-        'watering_date': formattedDate,
+        'watering_date': _toBackendDateTime(updatedDateTime),
         'status': schedule['status'],
       },
       options: Options(
@@ -536,14 +569,11 @@ class _SchedulesPageState extends State<SchedulesPage> {
     if (response.statusCode == 200) {
       await NotificationService.cancelNotification(schedule['id']);
 
-      if (!mounted) return;
-
       await NotificationService.scheduleNotification(
         id: schedule['id'],
         title: 'Pengingat Penyiraman',
         body:
-            'Saatnya menyiram tanaman ${schedule['plant_name'] ?? 'Tanaman'} '
-            'pada pukul ${pickedTime.format(context)}',
+            'Saatnya menyiram tanaman ${schedule['plant_name'] ?? 'Tanaman'} pada pukul ${DateFormat('HH:mm').format(updatedDateTime)}',
         scheduledDateTime: updatedDateTime,
       );
 
@@ -563,9 +593,15 @@ class _SchedulesPageState extends State<SchedulesPage> {
   }
 
   String _formatDateDisplay(String rawDate) {
-    final parsed = DateTime.tryParse(rawDate);
+    final parsed = _parseServerDate(rawDate);
     if (parsed == null) return rawDate;
     return DateFormat('dd MMM yyyy').format(parsed);
+  }
+
+  String _formatTimeDisplay(String rawDate) {
+    final parsed = _parseServerDate(rawDate);
+    if (parsed == null) return '-';
+    return DateFormat('HH:mm').format(parsed);
   }
 
   @override
@@ -611,7 +647,7 @@ class _SchedulesPageState extends State<SchedulesPage> {
             );
           }
 
-          final schedules = snapshot.data!;
+          final schedules = snapshot.data ?? [];
 
           if (schedules.isEmpty) {
             return Center(
@@ -673,8 +709,8 @@ class _SchedulesPageState extends State<SchedulesPage> {
                         CircleAvatar(
                           radius: 24,
                           backgroundColor: isCompleted
-                              ? Colors.green.withValues(alpha: 0.12)
-                              : Colors.orange.withValues(alpha: 0.12),
+                              ? Colors.green.withOpacity(0.12)
+                              : Colors.orange.withOpacity(0.12),
                           child: Icon(
                             isCompleted
                                 ? Icons.check_circle
@@ -698,6 +734,13 @@ class _SchedulesPageState extends State<SchedulesPage> {
                               Text(
                                 'Tanggal: ${_formatDateDisplay(schedule['watering_date']?.toString() ?? '-')}',
                               ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Jam: ${_formatTimeDisplay(schedule['watering_date']?.toString() ?? '-')}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                               const SizedBox(height: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -706,8 +749,8 @@ class _SchedulesPageState extends State<SchedulesPage> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: isCompleted
-                                      ? Colors.green.withValues(alpha: 0.12)
-                                      : Colors.orange.withValues(alpha: 0.12),
+                                      ? Colors.green.withOpacity(0.12)
+                                      : Colors.orange.withOpacity(0.12),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(

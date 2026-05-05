@@ -1,29 +1,32 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin
-      _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
   static Future<void> init() async {
     tz.initializeTimeZones();
+
+    final currentTimeZone = await FlutterTimezone.getLocalTimezone();
+    tz.setLocalLocation(tz.getLocation(currentTimeZone.identifier));
 
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
     const InitializationSettings initializationSettings =
-        InitializationSettings(
-      android: androidSettings,
-    );
+        InitializationSettings(android: androidSettings);
 
     await _flutterLocalNotificationsPlugin.initialize(initializationSettings);
   }
 
   static Future<void> requestPermission() async {
-    final androidImplementation =
-        _flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+    final androidImplementation = _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
 
     await androidImplementation?.requestNotificationsPermission();
     await androidImplementation?.requestExactAlarmsPermission();
@@ -32,15 +35,16 @@ class NotificationService {
   static Future<void> showInstantNotification() async {
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-      'agrismart_channel',
-      'AgriSmart Notifications',
-      channelDescription: 'Channel untuk notifikasi AgriSmart',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
+          'agrismart_channel',
+          'AgriSmart Notifications',
+          channelDescription: 'Channel untuk notifikasi AgriSmart',
+          importance: Importance.max,
+          priority: Priority.high,
+        );
 
-    const NotificationDetails notificationDetails =
-        NotificationDetails(android: androidDetails);
+    const NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+    );
 
     await _flutterLocalNotificationsPlugin.show(
       0,
@@ -56,17 +60,20 @@ class NotificationService {
     required String body,
     required DateTime scheduledDateTime,
   }) async {
+    if (scheduledDateTime.isBefore(DateTime.now())) return;
+
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-      'agrismart_channel',
-      'AgriSmart Notifications',
-      channelDescription: 'Channel untuk notifikasi AgriSmart',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
+          'agrismart_channel',
+          'AgriSmart Notifications',
+          channelDescription: 'Channel untuk notifikasi AgriSmart',
+          importance: Importance.max,
+          priority: Priority.high,
+        );
 
-    const NotificationDetails notificationDetails =
-        NotificationDetails(android: androidDetails);
+    const NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+    );
 
     final tzDateTime = tz.TZDateTime.from(scheduledDateTime, tz.local);
 

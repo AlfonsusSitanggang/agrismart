@@ -7,5 +7,6 @@ import 'app/app.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.init();
+  await NotificationService.requestPermission();
   runApp(const AgriSmartApp());
 }
